@@ -3,7 +3,8 @@
 void main() {
   int c;
   string s;
-
+  
+  // this is a comment
   s = "hello";
   c = test(4, 5);
   Print(c);

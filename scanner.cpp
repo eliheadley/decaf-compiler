@@ -181,6 +181,63 @@ class LexicalAnalyzer{
             return text.substr(start, (*position-start));
         }
 
+     std::string getType(TokenType type) {
+            switch (type) {
+                case T_AND: return "T_AND";
+                case T_ASSIGN: return "T_ASSIGN";
+                case T_BOOLTYPE: return "T_BOOLTYPE";
+                case T_BREAK: return "T_BREAK";
+                case T_CHARCONSTANT: return "T_CHARCONSTANT";
+                case T_COMMA: return "T_COMMA";
+                case T_COMMENT: return "T_COMMENT";
+                case T_CONTINUE: return "T_CONTINUE";
+                case T_DIV: return "T_DIV";
+                case T_DOT: return "T_DOT";
+                case T_ELSE: return "T_ELSE";
+                case T_EQ: return "T_EQ";
+                case T_EXTERN: return "T_EXTERN";
+                case T_FALSE: return "T_FALSE";
+                case T_FOR: return "T_FOR";
+                case T_FUNC: return "T_FUNC";
+                case T_GEQ: return "T_GEQ";
+                case T_GT: return "T_GT";
+                case T_ID: return "T_ID";
+                case T_IF: return "T_IF";
+                case T_INTCONSTANT: return "T_INTCONSTANT";
+                case T_INTTYPE: return "T_INTTYPE";
+                case T_LCB: return "T_LCB";
+                case T_LEFTSHIFT: return "T_LEFTSHIFT";
+                case T_LEQ: return "T_LEQ";
+                case T_LPAREN: return "T_LPAREN";
+                case T_LSB: return "T_LSB";
+                case T_LT: return "T_LT";
+                case T_MINUS: return "T_MINUS";
+                case T_MOD: return "T_MOD";
+                case T_MULT: return "T_MULT";
+                case T_NEQ: return "T_NEQ";
+                case T_NOT: return "T_NOT";
+                case T_NULL: return "T_NULL";
+                case T_OR: return "T_OR";
+                case T_PACKAGE: return "T_PACKAGE";
+                case T_PLUS: return "T_PLUS";
+                case T_RCB: return "T_RCB";
+                case T_RETURN: return "T_RETURN";
+                case T_RIGHTSHIFT: return "T_RIGHTSHIFT";
+                case T_RPAREN: return "T_RPAREN";
+                case T_RSB: return "T_RSB";
+                case T_SEMICOLON: return "T_SEMICOLON";
+                case T_STRINGCONSTANT: return "T_STRINGCONSTANT";
+                case T_STRINGTYPE: return "T_STRINGTYPE";
+                case T_TRUE: return "T_TRUE";
+                case T_VAR: return "T_VAR";
+                case T_VOID: return "T_VOID";
+                case T_WHILE: return "T_WHILE";
+                case T_WHITESPACE: return "T_WHITESPACE";
+                case Unknown: return "Unknown";
+                default: return "Invalid TokenType";
+            }
+        }
+
     public:
         string input;
         int position;
