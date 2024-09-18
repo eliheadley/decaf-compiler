@@ -64,7 +64,10 @@ enum TokenType {
 struct Token{
     std::string value;
     TokenType type;
-    Token(TokenType t, const std::string& v): type(t), value(v)
+    int line_number;
+    int col_start;
+    int col_end;
+    Token(TokenType t, const std::string& v, int l, int c1, int c2): type(t), value(v), line_number(l), col_start(c1), col_end(c2)
     {
 
     }
@@ -79,6 +82,11 @@ class LexicalAnalyzer{
         std::unordered_map<std::string, TokenType> operators;
         std::unordered_map<std::string, TokenType> punctuation;
         std::unordered_map<std::string, TokenType> literals;
+        vector<Token> tokens;
+        string *input;
+        int position;
+        int line_num;
+        int last_line_pos;
 
         void initKeywords() {
             // Keywords
@@ -142,31 +150,42 @@ class LexicalAnalyzer{
 
         bool isDigit(char c){ return ('0' <= c && c <= '9'); }
 
-        string removeComments(string input) {
-            ostringstream output;
+        void removeComments(string* input) {
             int position = 0;
-            int end = input.length();
+            int end = (*input).length();
 
             while (position < end) {
-                if (input[position] == '/' && position < end - 1 && input[position + 1] == '/') {
+                if ((*input)[position] == '/' && position < end - 1 && (*input)[position] == '/') {
                     // Skip single-line comment
+                    (*input)[position] = ' ';
+                    (*input)[position + 1] = ' ';
                     position += 2;
-                    while (position < end && input[position] != '\n') {
+                    while (position < end && (*input)[position] != '\n') {
+                        (*input)[position] = ' ';
                         position++;
                     }
                 } else {
-                    output << input[position];
                     position++;
                 }
             }
-            return output.str();
         }
 
-        string getNextWord(int* position, string text){
+        int getColumnEnd(int col, string token){
+            if(token.length() > 1){
+                return col + token.length() - 1;
+            }
+            return col;
+        }
+
+        string getNextWord(int* position, string* text, int* line, int* col){
             int start;
 
-            if(isWhiteSpace(text[*position])){
-                while(isWhiteSpace(text[*position])){
+            if(isWhiteSpace((*text)[*position])){
+                while(isWhiteSpace((*text)[*position])){
+                    if ((*text)[*position] == '\n') {
+                        line_num++; 
+                        last_line_pos = *position;
+                    }
                     *position += 1;
                 }
                 start = *position;
@@ -174,11 +193,13 @@ class LexicalAnalyzer{
                 start = *position;
             }
             
-            while(!isWhiteSpace(text[*position])){
+            while(!isWhiteSpace((*text)[*position])){
                 *position += 1;
             }
-            
-            return text.substr(start, (*position-start));
+            // Set line number and starting column number for the word
+            *line = line_num;
+            *col = start - last_line_pos;
+            return (*text).substr(start, (*position-start));
         }
 
      std::string getType(TokenType type) {
@@ -239,36 +260,36 @@ class LexicalAnalyzer{
         }
 
     public:
-        string input;
-        int position;
 
-        LexicalAnalyzer(string source){
+        LexicalAnalyzer(string* source){
             input = source;
             position = 0;
+            line_num = 0;
+            last_line_pos = 0;
             initKeywords();
             initOperators();
             initPunctuation();
         }
 
-        vector<Token> tokenize(){
-            vector<Token> tokens;
+        void tokenize(){
             // remove all comments
-            string scanned_text = removeComments(input);
+            removeComments(input);
         
-            int end = scanned_text.length();
+            int end = (*input).length();
             TokenType type = TokenType::Unknown;
-
+        
             while (position < end){
                 // grab the next word from the file
-                string word = getNextWord(&position, scanned_text);
+                int line, col;
+                string word = getNextWord(&position, input, &line, &col);
 
                 // compare current word with keywords and operators
                 if(keywords.find(word) != keywords.end()){
                     type = keywords[word];
-                    tokens.push_back(Token(type, word));
+                    tokens.push_back(Token(type, word, line, col, getColumnEnd(col, word)));
                 }else if(operators.find(word) != operators.end()){
                     type = operators[word];
-                    tokens.push_back(Token(type, word));
+                    tokens.push_back(Token(type, word, line, col, getColumnEnd(col, word)));
                 // scan each character in the word
                 }else{
                     int start = 0;
@@ -280,11 +301,11 @@ class LexicalAnalyzer{
                         if(punctuation.find(curChar) != punctuation.end()){
                             if(!literal.empty()){
                                 type = TokenType::T_ID;
-                                tokens.push_back(Token(type, literal));
+                                tokens.push_back(Token(type, literal, line, col, getColumnEnd(col, literal)));
                                 literal.clear();
                             }
                             type = punctuation[curChar];
-                            tokens.push_back(Token(type, curChar));
+                            tokens.push_back(Token(type, curChar, line, col+i, getColumnEnd(col+i, curChar)));
                         }else{
                             literal += curChar;
                         }
@@ -292,48 +313,45 @@ class LexicalAnalyzer{
                     // check if
                     if(!literal.empty()){
                         type = TokenType::T_ID;
-                        tokens.push_back(Token(type, literal));
+                        tokens.push_back(Token(type, literal, line, col, getColumnEnd(col, literal)));
                     }
                 }
-
             }
-            return tokens;
+        }
+
+        void printTokens(){
+            for(Token t : tokens){
+                cout << t.value << "     line " << t.line_number << " Cols " << t.col_start << " - " << t.col_end << " is " << getType(t.type) << endl;
+            }
         }
 };
 
-string readFile(string file_name){
+void readFile(string file_name, string* source_code){
     // read file passed from std	
 	ifstream file(file_name);
     if (!file)
     {
         cerr << "Error opening \"" + file_name + "\"\n";
-        return "";
     }
 
     string input;
-    string source_code;
     while(getline(file, input)){
-        source_code += "\n" + input;
+        *source_code += "\n" + input;
     }
     
     file.close();
-    return source_code;
 }
 
 // main method to run program
 int main(int argc, char *argv[]){
 
     string file_name = argv[1];
-    
-    string src_code = readFile(file_name);
-    // string src_code = "int main() { printf(\"hello\") return 0; }";
-
-    LexicalAnalyzer lexer = LexicalAnalyzer(src_code);
-    vector<Token> tokens = lexer.tokenize();
-
-    for(Token t : tokens){
-        cout << t.type << " and Lexeme: " << t.value << endl;
-    }
+    string src_code;
+    readFile(file_name, &src_code);
+   
+    LexicalAnalyzer lexer = LexicalAnalyzer(&src_code);
+    lexer.tokenize();
+    lexer.printTokens();
 
     return 0;
 }
