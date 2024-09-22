@@ -144,11 +144,31 @@ class LexicalAnalyzer{
             punctuation["]"] = T_RSB;
         }
 
-        bool isWhiteSpace(char c){ return (c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\v' || c == 'f'); }
+        bool isWhiteSpace(char c){ return (c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\v' || c == '\f'); }
 
-        bool isLetter(char c){ return (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z')); }
+        bool isLetter(char c){ return ('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || c == '_'; }
 
         bool isDigit(char c){ return ('0' <= c && c <= '9'); }
+
+        bool isPunctuation(char c){
+            bool isPunc = false;
+            string temp;
+            temp.push_back(c);
+            if(punctuation.find(temp) != punctuation.end()){
+                isPunc = true;
+            }
+            return isPunc;
+        }
+
+        bool isOperator(char c){
+            bool isOp = false;
+            string temp;
+            temp.push_back(c);
+            if(operators.find(temp) != operators.end()){
+                isOp = true;
+            }
+            return isOp;
+        }
 
         void removeComments(string* input) {
             int position = 0;
@@ -179,27 +199,39 @@ class LexicalAnalyzer{
 
         string getNextWord(int* position, string* text, int* line, int* col){
             int start;
+            bool isStringLiteral = false;
 
-            if(isWhiteSpace((*text)[*position])){
-                while(isWhiteSpace((*text)[*position])){
+            if (isWhiteSpace((*text)[*position])) {
+                while (isWhiteSpace((*text)[*position])) {
                     if ((*text)[*position] == '\n') {
-                        line_num++; 
+                        line_num++;
                         last_line_pos = *position;
                     }
                     *position += 1;
                 }
                 start = *position;
-            }else{
+            } else {
                 start = *position;
             }
-            
-            while(!isWhiteSpace((*text)[*position])){
+
+            if ((*text)[*position] == '\"') {
+                isStringLiteral = true;
+                start = *position;
                 *position += 1;
             }
+
+            while (*position < text->length() && (isStringLiteral || !isWhiteSpace((*text)[*position]))) {
+                if (isStringLiteral && (*text)[*position] == '\"') {
+                    *position += 1;
+                    break;
+                }
+                *position += 1;
+            }
+
             // Set line number and starting column number for the word
             *line = line_num;
             *col = start - last_line_pos;
-            return (*text).substr(start, (*position-start));
+            return (*text).substr(start, (*position - start));
         }
 
      std::string getType(TokenType type) {
@@ -292,28 +324,118 @@ class LexicalAnalyzer{
                     tokens.push_back(Token(type, word, line, col, getColumnEnd(col, word)));
                 // scan each character in the word
                 }else{
+                    // Scan each character in the word
                     int start = 0;
-                    string literal;
-                    for(int i = 0; i < word.length(); i++){
-                        // grab current character and cast to a string
-                        string curChar;
-                        curChar.push_back(word[i]);
-                        if(punctuation.find(curChar) != punctuation.end()){
-                            if(!literal.empty()){
-                                type = TokenType::T_ID;
-                                tokens.push_back(Token(type, literal, line, col, getColumnEnd(col, literal)));
-                                literal.clear();
+                    string next_token;
+                    char firstChar;
+
+                    while (start < word.length()) {
+                        firstChar = word[start];
+
+                        if(isOperator(firstChar)){
+                            // Check for operators between identifiers
+                            next_token.clear();
+                            if (start < word.length() && isOperator(word[start])){
+                                next_token.push_back(word[start]);
+                                if(start+1 < word.length() && isOperator(word[start+1])){
+                                    next_token.push_back(word[start+1]);
+                                    tokens.push_back(Token(operators[next_token], next_token, line, col, getColumnEnd(col, next_token)));
+                                    start += 2;
+                                    col += next_token.length();
+                                } else {
+                                    tokens.push_back(Token(operators[next_token], next_token, line, col, getColumnEnd(col, next_token)));
+                                    start++;
+                                    col += next_token.length();
+                                }
                             }
-                            type = punctuation[curChar];
-                            tokens.push_back(Token(type, curChar, line, col+i, getColumnEnd(col+i, curChar)));
-                        }else{
-                            literal += curChar;
+                        } else if (isLetter(firstChar)) {
+                            // Handle identifiers
+                            next_token.clear();
+                            while (start < word.length() && (isLetter(word[start]) || isDigit(word[start]))) {
+                                next_token.push_back(word[start]);
+                                start++;
+                            }
+                            // Check if token is a key word
+                            if(keywords.find(next_token) != keywords.end()){
+                                type = keywords[next_token];
+                            }else{
+                                type = TokenType::T_ID;
+                            }
+                            tokens.push_back(Token(type, next_token, line, col, getColumnEnd(col, next_token)));
+                            col += next_token.length();
+                            // Check for operators between identifiers
+                            next_token.clear();
+                            if (start < word.length() && isOperator(word[start])){
+                                next_token.push_back(word[start]);
+                                if(start+1 < word.length() && isOperator(word[start+1])){
+                                    next_token.push_back(word[start+1]);
+                                    tokens.push_back(Token(operators[next_token], next_token, line, col, getColumnEnd(col, next_token)));
+                                    start += 2;
+                                    col += next_token.length();
+                                } else {
+                                    tokens.push_back(Token(operators[next_token], next_token, line, col, getColumnEnd(col, next_token)));
+                                    start++;
+                                    col += next_token.length();
+                                }
+                            }
+                        } else if (isDigit(firstChar)) {
+                            // Handle numbers (including decimal numbers)
+                            next_token.clear();
+                            bool isDecimal = false;
+                            while (start < word.length() && (isDigit(word[start]) || (word[start] == '.' && !isDecimal))) {
+                                if (word[start] == '.') {
+                                    isDecimal = true;
+                                }
+                                next_token.push_back(word[start]);
+                                start++;
+                            }
+                            tokens.push_back(Token(TokenType::T_INTCONSTANT, next_token, line, col, getColumnEnd(col, next_token)));
+                            col += next_token.length();
+                            // Check for operators between digits
+                            next_token.clear();
+                            if (start < word.length() && isOperator(word[start])){
+                                next_token.push_back(word[start]);
+                                if(start+1 < word.length() && isOperator(word[start+1])){
+                                    next_token.push_back(word[start+1]);
+                                    tokens.push_back(Token(operators[next_token], next_token, line, col, getColumnEnd(col, next_token)));
+                                    start += 2;
+                                    col += next_token.length();
+                                } else {
+                                    tokens.push_back(Token(operators[next_token], next_token, line, col, getColumnEnd(col, next_token)));
+                                    start++;
+                                    col += next_token.length();
+                                }
+                            }
+                        } else if (firstChar == '\"') {
+                            // Handle string literals
+                            next_token.clear();
+                            next_token.push_back(word[start]);
+                            start++;
+                            while (start < word.length() && word[start] != '\"') {
+                                next_token.push_back(word[start]);
+                                start++;
+                            }
+                            if (start < word.length() && word[start] == '\"') {
+                                next_token.push_back(word[start]);
+                                start++;
+                            }
+                            tokens.push_back(Token(TokenType::T_STRINGCONSTANT, next_token, line, col, getColumnEnd(col, next_token)));
+                            col += next_token.length() + 2; // Including the quotes
+                        } else if (isPunctuation(firstChar)) {
+                            // Handle punctuation
+                            next_token.clear();
+                            next_token.push_back(firstChar);
+                            tokens.push_back(Token(punctuation[next_token], next_token, line, col, getColumnEnd(col, next_token)));
+                            start++;
+                            col++;
+                        } else {
+                            // Handle unknown tokens
+                            next_token.clear();
+                            next_token.push_back(firstChar);
+                            tokens.push_back(Token(TokenType::Unknown, next_token, line, col, getColumnEnd(col, next_token)));
+                            start++;
+                            col++;
                         }
-                    }
-                    // check if
-                    if(!literal.empty()){
-                        type = TokenType::T_ID;
-                        tokens.push_back(Token(type, literal, line, col, getColumnEnd(col, literal)));
                     }
                 }
             }
@@ -345,7 +467,8 @@ void readFile(string file_name, string* source_code){
 // main method to run program
 int main(int argc, char *argv[]){
 
-    string file_name = argv[1];
+    // string file_name = argv[1];
+    string file_name = "test/t4.decaf";
     string src_code;
     readFile(file_name, &src_code);
    
