@@ -2,9 +2,8 @@
 
 ## Installation
 
-1. **Clone the repository:**
+1. **Unzip the repository:**
     ```sh
-    git clone https://github.com/yourusername/decaf-compiler.git
     cd decaf-compiler
     ```
 
@@ -29,17 +28,15 @@
 
 3. **Build the project:**
     ```sh
-    mkdir build
-    cd build
-    cmake ..
-    cmake --build .
+    g++ -g -o main main.cpp
+    or you can use cmake
     ```
 
 ## Running the Compiler
 
-1. **Run the compiler:**
+1. **Run the scanner:**
     ```sh
-    ./decaf-compiler <source-file>
+    ./main <source-file>
     ```
 
     Replace `<source-file>` with the path to the Decaf source file you want to compile.
@@ -48,8 +45,8 @@
 
 1. **Compile a sample Decaf file:**
     ```sh
-    ./decaf-compiler ../examples/sample.decaf
+    ./main t1.decaf
     ```
 
 2. **Check the output:**
-    The compiler will generate the output based on the provided input files t1.decaf, t3.decaf, and t4.decaf
+    The scanner will generate the output based on the provided input files and print it to the terminal
