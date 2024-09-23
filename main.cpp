@@ -474,8 +474,9 @@ void readFile(string file_name, string* source_code){
 // main method to run program
 int main(int argc, char *argv[]){
 
-    // string file_name = argv[1];
-    string file_name = "test/t4.decaf";
+    string file_name = argv[1];
+    // If reading file from terminal is not working uncomment this line
+    // string file_name = "t1.decaf";
     string src_code;
     readFile(file_name, &src_code);
    
