@@ -3,11 +3,10 @@ import java.nio.file.*;
 
 public class Main {
     public static void main(String[] args) {
-        String fileName = "test/t4.decaf";
+        String fileName = "test/t3.decaf";
         String srcCode = readFile(fileName);
-
+        
         LexicalAnalyzer lexer = new LexicalAnalyzer(srcCode);
-        lexer.tokenize();
         lexer.printTokens();
     }
 

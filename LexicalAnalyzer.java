@@ -59,12 +59,14 @@ class Token {
     String value;
     int line;
     int col;
+    int end;
 
-    Token(TokenType type, String value, int line, int col) {
+    Token(TokenType type, String value, int line, int col, int end) {
         this.type = type;
         this.value = value;
         this.line = line;
         this.col = col;
+        this.end = end;
     }
 }
 
@@ -73,6 +75,8 @@ public class LexicalAnalyzer {
     private int position;
     private int lineNum;
     private int lastLinePos;
+    private int col;
+    private int curToken;
     private List<Token> tokens;
     private Map<String, TokenType> keywords;
     private Map<String, TokenType> operators;
@@ -83,6 +87,8 @@ public class LexicalAnalyzer {
         this.position = 0;
         this.lineNum = 1;
         this.lastLinePos = 0;
+        this.col = 0;
+        this.curToken = 0;
         this.tokens = new ArrayList<>();
         this.keywords = new HashMap<>();
         this.operators = new HashMap<>();
@@ -90,6 +96,7 @@ public class LexicalAnalyzer {
         initKeywords();
         initOperators();
         initPunctuation();
+        tokenize();
     }
 
     private void initKeywords() {
@@ -108,9 +115,20 @@ public class LexicalAnalyzer {
         keywords.put("return", TokenType.T_RETURN);
         keywords.put("string", TokenType.T_STRINGTYPE);
         keywords.put("true", TokenType.T_TRUE);
+        keywords.put("var", TokenType.T_VAR);
+        keywords.put("void", TokenType.T_VOID);
+        keywords.put("while", TokenType.T_WHILE);
     }
 
     private void initOperators() {
+        operators.put("&&", TokenType.T_AND);
+        operators.put("=", TokenType.T_ASSIGN);
+        operators.put("==", TokenType.T_EQ);
+        operators.put(">=", TokenType.T_GEQ);
+        operators.put(">", TokenType.T_GT);
+        operators.put("<=", TokenType.T_LEQ);
+        operators.put("<", TokenType.T_LT);
+        operators.put("!=", TokenType.T_NEQ);
         operators.put("!", TokenType.T_NOT);
         operators.put("||", TokenType.T_OR);
         operators.put("+", TokenType.T_PLUS);
@@ -134,41 +152,160 @@ public class LexicalAnalyzer {
         punctuation.put("]", TokenType.T_RSB);
     }
 
-    public void tokenize() {
-        while (position < input.length()) {
-            char currentChar = input.charAt(position);
-            if (isWhiteSpace(currentChar)) {
-                position++;
-            } else if (isLetter(currentChar)) {
-                String word = getNextWord();
-                TokenType type = keywords.containsKey(word) ? keywords.get(word) : TokenType.T_ID;
-                tokens.add(new Token(type, word, lineNum, lastLinePos));
-            } else if (isDigit(currentChar)) {
-                String number = getNextWord();
-                tokens.add(new Token(TokenType.T_INTCONSTANT, number, lineNum, lastLinePos));
-            } else if (isPunctuation(currentChar)) {
-                String punct = String.valueOf(currentChar);
-                tokens.add(new Token(punctuation.get(punct), punct, lineNum, lastLinePos));
-                position++;
-            } else if (isOperator(currentChar)) {
-                String op = String.valueOf(currentChar);
-                tokens.add(new Token(operators.get(op), op, lineNum, lastLinePos));
-                position++;
-            } else {
-                position++;
+    private int getColumnEnd(int col, String token){
+        if(token.length() > 1){
+            return col + token.length() - 1;
+        }
+        return col;
+    }
+    
+
+    private void tokenize() {
+        // remove all comments
+        removeComments();
+
+        int end = input.length();
+        TokenType type = TokenType.Unknown;
+
+        while (position < end){
+            // grab the next word from the file
+            col = 0;
+            String word = getNextWord();
+
+            // compare current word with keywords and operators
+            if(keywords.containsKey(word)){
+                type = keywords.get(word);
+                tokens.add(new Token(type, word, lineNum, col, getColumnEnd(col, word)));
+            }else if(operators.containsKey(word)){
+                type = operators.get(word);
+                tokens.add(new Token(type, word, lineNum, col, getColumnEnd(col, word)));
+            // scan each character in the word
+            }else{
+                // Scan each character in the word
+                int start = 0;
+                String next_token;
+                char firstChar;
+
+                while (start < word.length()) {
+                    firstChar = word.charAt(start);
+
+                    if(isOperator(firstChar)){
+                        // Check for operators between identifiers
+                        next_token = "";
+                        if (start < word.length() && isOperator(word.charAt(start))){
+                            next_token += word.charAt(start);
+                            if(start+1 < word.length() && isOperator(word.charAt(start+1))){
+                                next_token += word.charAt(start+1);
+                                tokens.add(new Token(operators.get(next_token), next_token, lineNum, col, getColumnEnd(col, next_token)));
+                                start += 2;
+                                col += next_token.length();
+                            } else {
+                                tokens.add(new Token(operators.get(next_token), next_token, lineNum, col, getColumnEnd(col, next_token)));
+                                start++;
+                                col += next_token.length();
+                            }
+                        }
+                    } else if (isLetter(firstChar)) {
+                        // Handle identifiers
+                        next_token = "";
+                        while (start < word.length() && (isLetter(word.charAt(start)) || isDigit(word.charAt(start)))) {
+                            next_token += word.charAt(start);
+                            start++;
+                        }
+                        // Check if token is a key word
+                        if(keywords.containsKey(next_token)){
+                            type = keywords.get(next_token);
+                        }else{
+                            type = TokenType.T_ID;
+                        }
+                        tokens.add(new Token(type, next_token, lineNum, col, getColumnEnd(col, next_token)));
+                        col += next_token.length();
+                        // Check for operators between identifiers
+                        next_token = "";
+                        if (start < word.length() && isOperator(word.charAt(start))){
+                            next_token += word.charAt(start);
+                            if(start+1 < word.length() && isOperator(word.charAt(start+1))){
+                                next_token += word.charAt(start+1);
+                                tokens.add(new Token(operators.get(next_token), next_token, lineNum, col, getColumnEnd(col, next_token)));
+                                start += 2;
+                                col += next_token.length();
+                            } else {
+                                tokens.add(new Token(operators.get(next_token), next_token, lineNum, col, getColumnEnd(col, next_token)));
+                                start++;
+                                col += next_token.length();
+                            }
+                        }
+                    } else if (isDigit(firstChar)) {
+                        // Handle numbers (including decimal numbers)
+                        next_token = "";
+                        boolean isDecimal = false;
+                        while (start < word.length() && (isDigit(word.charAt(start)) || (word.charAt(start) == '.' && !isDecimal))) {
+                            if (word.charAt(start) == '.') {
+                                isDecimal = true;
+                            }
+                            next_token += word.charAt(start);
+                            start++;
+                        }
+                        tokens.add(new Token(TokenType.T_INTCONSTANT, next_token, lineNum, col, getColumnEnd(col, next_token)));
+                        col += next_token.length();
+                        // Check for operators between digits
+                        next_token = "";
+                        if (start < word.length() && isOperator(word.charAt(start))){
+                            next_token += word.charAt(start);
+                            if(start+1 < word.length() && isOperator(word.charAt(start+1))){
+                                next_token += word.charAt(start+1);
+                                tokens.add(new Token(operators.get(next_token), next_token, lineNum, col, getColumnEnd(col, next_token)));
+                                start += 2;
+                                col += next_token.length();
+                            } else {
+                                tokens.add(new Token(operators.get(next_token), next_token, lineNum, col, getColumnEnd(col, next_token)));
+                                start++;
+                                col += next_token.length();
+                            }
+                        }
+                    } else if (firstChar == '\"') {
+                        // Handle string literals
+                        next_token = "";
+                        next_token += word.charAt(start);
+                        start++;
+                        while (start < word.length() && word.charAt(start) != '\"') {
+                            next_token += word.charAt(start);
+                            start++;
+                        }
+                        if (start < word.length() && word.charAt(start) == '\"') {
+                            next_token += word.charAt(start);
+                            start++;
+                        }
+                        tokens.add(new Token(TokenType.T_STRINGCONSTANT, next_token, lineNum, col, getColumnEnd(col, next_token)));
+                        col += next_token.length() + 2; // Including the quotes
+                    } else if (isPunctuation(firstChar)) {
+                        // Handle punctuation
+                        next_token = "";
+                        next_token += firstChar;
+                        tokens.add(new Token(punctuation.get(next_token), next_token, lineNum, col, getColumnEnd(col, next_token)));
+                        start++;
+                        col++;
+                    } else {
+                        // Handle unknown tokens
+                        next_token = "";
+                        next_token += firstChar;
+                        tokens.add(new Token(TokenType.Unknown, next_token, lineNum, col, getColumnEnd(col, next_token)));
+                        start++;
+                        col++;
+                    }
+                }
             }
         }
     }
 
     public void printTokens() {
         for (Token token : tokens) {
-            System.out.println("Token: " + getType(token.type) + ", Value: " + token.value
-                    + ", Line: " + token.line + ", Column: " + token.col);
+            System.out.println(token.value + "     line " + token.line + " Cols " + token.col + "-" + token.end + " is " + getType(token.type));
         }
     }
 
     private boolean isWhiteSpace(char c) {
-        return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+        return (c == ' ' || c == '\n' || c == '\r' || c == '\t' || c == '\f');
     }
 
     private boolean isLetter(char c) {
@@ -188,66 +325,119 @@ public class LexicalAnalyzer {
     }
 
     private String getNextWord() {
-        StringBuilder word = new StringBuilder();
-        while (position < input.length() && (isLetter(input.charAt(position)) || isDigit(input.charAt(position)))) {
-            word.append(input.charAt(position));
+        int start;
+        boolean isStringLiteral = false;
+
+        while (isWhiteSpace(input.charAt(position))){
+            if(input.charAt(position) == '\n'){
+                lineNum++;
+                lastLinePos = position;
+            }
             position++;
         }
-        return word.toString();
+        start = position;
+
+        if (input.charAt(position) == '\"'){
+            isStringLiteral = true;
+            position++;
+        }
+
+        while (position < input.length() && (isStringLiteral || !isWhiteSpace(input.charAt(position)))) {
+            if (isStringLiteral && input.charAt(position) == '\"'){
+                position++;
+                break;
+            }
+            position++;
+        }
+        col = start - lastLinePos;
+        return input.substring(start, position);
+    }
+
+    private void removeComments(){
+        StringBuilder newStr = new StringBuilder(input);
+        int i= 0;
+        int end = newStr.length();
+
+        while (i< end) {
+            if (newStr.charAt(i) == '/' && i < end - 1 && newStr.charAt(i+1) == '/') {
+                // Skip single-line comment
+                newStr.setCharAt(i, ' ');
+                newStr.setCharAt(i+1, ' ');
+                i+= 2;
+                while (i< end && newStr.charAt(i) != '\n') {
+                    newStr.setCharAt(i, ' ');
+                    i++;
+                }
+            } else {
+                i++;
+            }
+        }
+
+        input = newStr.toString();
+    }
+
+    public Token getNextToken(){
+        Token t = null;
+        if (this.curToken < tokens.size()){
+            t = tokens.get(curToken);
+            curToken++;
+        }
+        return t;
+        
     }
 
     private String getType(TokenType type) {
         switch (type) {
-            case T_AND: return "&&";
-            case T_ASSIGN: return "=";
-            case T_BOOLTYPE: return "bool";
-            case T_BREAK: return "break";
-            case T_CHARCONSTANT: return "char_lit";
-            case T_COMMA: return ",";
-            case T_COMMENT: return "comment";
-            case T_CONTINUE: return "continue";
-            case T_DIV: return "/";
-            case T_DOT: return ".";
-            case T_ELSE: return "T_Else";
-            case T_EQ: return "==";
-            case T_EXTERN: return "extern";
-            case T_FALSE: return "false";
-            case T_FOR: return "for";
-            case T_FUNC: return "func";
-            case T_GEQ: return ">=";
-            case T_GT: return ">";
-            case T_ID: return "identifier";
-            case T_IF: return "T_If";
-            case T_INTCONSTANT: return "T_IntConstant";
-            case T_INTTYPE: return "int";
-            case T_LCB: return "{";
-            case T_LEFTSHIFT: return "<<";
-            case T_LEQ: return "<=";
-            case T_LPAREN: return "(";
-            case T_LSB: return "[";
-            case T_LT: return "<";
-            case T_MINUS: return "-";
-            case T_MOD: return "%";
-            case T_MULT: return "*";
-            case T_NEQ: return "!=";
-            case T_NOT: return "!";
-            case T_NULL: return "null";
-            case T_OR: return "||";
-            case T_PACKAGE: return "package";
-            case T_PLUS: return "+";
-            case T_RCB: return "}";
-            case T_RETURN: return "T_Return";
-            case T_RIGHTSHIFT: return ">>";
-            case T_RPAREN: return ")";
-            case T_RSB: return "]";
-            case T_SEMICOLON: return ";";
+            case T_AND: return "T_AND";
+            case T_ASSIGN: return "T_ASSIGN";
+            case T_BOOLTYPE: return "T_BOOLTYPE";
+            case T_BREAK: return "T_BREAK";
+            case T_CHARCONSTANT: return "T_CHARCONSTANT";
+            case T_COMMA: return "T_COMMA";
+            case T_COMMENT: return "T_COMMENT";
+            case T_CONTINUE: return "T_CONTINUE";
+            case T_DIV: return "T_DIV";
+            case T_DOT: return "T_DOT";
+            case T_ELSE: return "T_ELSE";
+            case T_EQ: return "T_EQ";
+            case T_EXTERN: return "T_EXTERN";
+            case T_FALSE: return "T_FALSE";
+            case T_FOR: return "T_FOR";
+            case T_FUNC: return "T_FUNC";
+            case T_GEQ: return "T_GEQ";
+            case T_GT: return "T_GT";
+            case T_ID: return "T_ID";
+            case T_IF: return "T_IF";
+            case T_INTCONSTANT: return "T_INTCONSTANT";
+            case T_INTTYPE: return "T_INTTYPE";
+            case T_LCB: return "T_LCB";
+            case T_LEFTSHIFT: return "T_LEFTSHIFT";
+            case T_LEQ: return "T_LEQ";
+            case T_LPAREN: return "T_LPAREN";
+            case T_LSB: return "T_LSB";
+            case T_LT: return "T_LT";
+            case T_MINUS: return "T_MINUS";
+            case T_MOD: return "T_MOD";
+            case T_MULT: return "T_MULT";
+            case T_NEQ: return "T_NEQ";
+            case T_NOT: return "T_NOT";
+            case T_NULL: return "T_NULL";
+            case T_OR: return "T_OR";
+            case T_PACKAGE: return "T_PACKAGE";
+            case T_PLUS: return "T_PLUS";
+            case T_RCB: return "T_RCB";
+            case T_RETURN: return "T_RETURN";
+            case T_RIGHTSHIFT: return "T_RIGHTSHIFT";
+            case T_RPAREN: return "T_RPAREN";
+            case T_RSB: return "T_RSB";
+            case T_SEMICOLON: return "T_SEMICOLON";
             case T_STRINGCONSTANT: return "T_STRINGCONSTANT";
-            case T_STRINGTYPE: return "string";
-            case T_TRUE: return "true";
-            case T_VAR: return "var";
-            case T_VOID: return "T_Void";
-            case T_WHILE: return "while";
-            case T_WHITESPACE: return "whitespace";
+            case T_STRINGTYPE: return "T_STRINGTYPE";
+            case T_TRUE: return "T_TRUE";
+            case T_VAR: return "T_VAR";
+            case T_VOID: return "T_VOID";
+            case T_WHILE: return "T_WHILE";
+            case T_WHITESPACE: return "T_WHITESPACE";
             case Unknown: return "Unknown";
             default: return "Invalid TokenType";
         }
