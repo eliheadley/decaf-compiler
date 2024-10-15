@@ -1,2 +1,4 @@
 # ignore exe files
 *.exe
+# ignore pyc files
+*.pyc
