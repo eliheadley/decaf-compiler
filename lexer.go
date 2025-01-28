@@ -133,7 +133,7 @@ func removeComments(src_code *[]byte) {
 	var end int = len(*src_code)
 
 	for position < end {
-		if (*src_code)[position] == '/' && position < end-1 && (*src_code)[position] == '/' {
+		if (*src_code)[position] == '/' && position < end-1 && (*src_code)[position+1] == '/' {
 			// Skip single-line comment
 			(*src_code)[position] = ' '
 			(*src_code)[position+1] = ' '
@@ -148,6 +148,16 @@ func removeComments(src_code *[]byte) {
 	}
 }
 
+func getNextToke() {
+	// This function grabs the next token from the input
+	fmt.Println("Next token")
+}
+
+func tokenize(src_code *[]byte) {
+	removeComments(src_code)
+	fmt.Println(string(*src_code))
+}
+
 func readFile(file string) []byte {
 	content, err := os.ReadFile(file)
 	if err != nil {
@@ -158,6 +168,5 @@ func readFile(file string) []byte {
 
 func main() {
 	var src_code = readFile(os.Args[1])
-	removeComments(&src_code)
-	fmt.Println(string(src_code))
+	tokenize(&src_code)
 }
